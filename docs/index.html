@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Guide — Snowflake Cortex RAG デモ ドキュメント</title>
+    <style>
+        :root {
+            --sf-blue: #29B5E8;
+            --sf-dark: #1B2A4A;
+            --sf-light: #F4F8FB;
+            --sf-accent: #11567F;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+            background: var(--sf-light);
+            color: #172B4D;
+            line-height: 1.7;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: linear-gradient(135deg, var(--sf-dark) 0%, #1a3a6a 50%, var(--sf-accent) 100%);
+            color: #fff;
+            padding: 56px 0 48px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.4rem; font-weight: 700; margin-bottom: 10px; }
+        .header p { font-size: 1.1rem; opacity: 0.85; max-width: 600px; margin: 0 auto; }
+        .container { max-width: 800px; margin: 0 auto; padding: 0 24px; flex: 1; }
+        .cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin: -36px 0 48px;
+            position: relative;
+            z-index: 1;
+        }
+        .card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 32px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            text-decoration: none;
+            color: #172B4D;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            border-color: var(--sf-blue);
+        }
+        .card .icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+        }
+        .card .icon.cost { background: #DEEBFF; }
+        .card .icon.ext { background: #E3FCEF; }
+        .card h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--sf-dark); }
+        .card p { font-size: 0.93rem; color: #505F79; line-height: 1.6; }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 12px;
+        }
+        .badge.blue { background: #DEEBFF; color: #0747A6; }
+        .badge.green { background: #E3FCEF; color: #006644; }
+        .info {
+            background: #fff;
+            border-radius: 14px;
+            padding: 28px 32px;
+            margin-bottom: 40px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+        }
+        .info h3 { font-size: 1.05rem; color: var(--sf-accent); margin-bottom: 12px; }
+        .info ul { padding-left: 20px; }
+        .info li { margin-bottom: 6px; font-size: 0.93rem; }
+        .info a { color: var(--sf-blue); text-decoration: none; }
+        .info a:hover { text-decoration: underline; }
+        .footer {
+            text-align: center;
+            padding: 28px 0;
+            color: #6B778C;
+            font-size: 0.85rem;
+        }
+        .footer a { color: var(--sf-blue); text-decoration: none; }
+        @media (max-width: 600px) {
+            .cards { grid-template-columns: 1fr; }
+            .header h1 { font-size: 1.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>RAG Guide</h1>
+    <p>Snowflake Cortex を使った RAG デモの技術ドキュメント</p>
+</div>
+
+<div class="container">
+    <div class="cards">
+        <a class="card" href="rag_cost_guide.html">
+            <div class="icon cost">&#x1f4b0;</div>
+            <h2>RAG コスト解説</h2>
+            <p>Cortex Search / Cortex Agent のコスト構造、見積もり方法、モニタリング SQL、最適化ベストプラクティス</p>
+            <span class="badge blue">Cortex Search + Agent</span>
+        </a>
+        <a class="card" href="agent_extensions_guide.html">
+            <div class="icon ext">&#x1f527;</div>
+            <h2>Agent 拡張ガイド</h2>
+            <p>カラム拡張・Time Decay・Citation URL・Budget 上限・カスタムツール等 20 の拡張機能</p>
+            <span class="badge green">20 Features</span>
+        </a>
+    </div>
+
+    <div class="info">
+        <h3>プロジェクト概要</h3>
+        <ul>
+            <li>景品表示法ガイドライン 33 件の PDF を Snowflake に取り込み</li>
+            <li>AI_PARSE_DOCUMENT + SPLIT_TEXT_RECURSIVE_CHARACTER でチャンク化</li>
+            <li>Cortex Search Service でベクトル検索インデックスを構築</li>
+            <li>Cortex Agent (LEGAL_GUIDE_AGENT) で自然言語 Q&A を実現</li>
+            <li>Task + Dynamic Table で自動メンテナンス</li>
+        </ul>
+    </div>
+
+    <div class="info">
+        <h3>関連リンク</h3>
+        <ul>
+            <li><a href="https://github.com/hwatari-snow/RAG_guide" target="_blank">GitHub リポジトリ (hwatari-snow/RAG_guide)</a></li>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents" target="_blank">Cortex Agents — Snowflake Docs</a></li>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-overview" target="_blank">Cortex Search — Snowflake Docs</a></li>
+        </ul>
+    </div>
+</div>
+
+<div class="footer">
+    <p>DEMO.KAIBALAB | <a href="https://github.com/hwatari-snow/RAG_guide">hwatari-snow/RAG_guide</a></p>
+</div>
+
+</body>
+</html>

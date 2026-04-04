@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cortex Agent 拡張ガイド — 機能拡張・カスタマイズ一覧</title>
+    <style>
+        :root {
+            --sf-blue: #29B5E8;
+            --sf-dark: #1B2A4A;
+            --sf-light: #F4F8FB;
+            --sf-accent: #11567F;
+            --sf-green: #36B37E;
+            --sf-orange: #FF8B00;
+            --sf-red: #DE350B;
+            --sf-gray: #6B778C;
+            --sf-border: #DFE1E6;
+            --sf-purple: #6554C0;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+            background: var(--sf-light);
+            color: #172B4D;
+            line-height: 1.7;
+        }
+        .header {
+            background: linear-gradient(135deg, var(--sf-dark) 0%, #1a3a6a 50%, var(--sf-accent) 100%);
+            color: #fff;
+            padding: 48px 0 40px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: 8px; }
+        .header p { font-size: 1.05rem; opacity: 0.85; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+        .toc {
+            background: #fff;
+            border-radius: 12px;
+            padding: 28px 36px;
+            margin: -32px 0 32px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            position: relative;
+            z-index: 1;
+        }
+        .toc h2 { font-size: 1.1rem; color: var(--sf-accent); margin-bottom: 14px; }
+        .toc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 8px;
+        }
+        .toc a {
+            color: var(--sf-dark);
+            text-decoration: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 0.92rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.15s;
+        }
+        .toc a:hover { background: #EDF5FF; }
+        .toc a .num {
+            background: var(--sf-blue);
+            color: #fff;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 36px 40px;
+            margin-bottom: 28px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+        }
+        section h2 {
+            font-size: 1.5rem;
+            color: var(--sf-dark);
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--sf-blue);
+        }
+        section h3 {
+            font-size: 1.15rem;
+            color: var(--sf-accent);
+            margin: 24px 0 12px;
+        }
+        section h3:first-of-type { margin-top: 8px; }
+        .cost-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0 24px;
+            font-size: 0.92rem;
+        }
+        .cost-table th {
+            background: var(--sf-dark);
+            color: #fff;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+        }
+        .cost-table td {
+            padding: 11px 16px;
+            border-bottom: 1px solid var(--sf-border);
+            vertical-align: top;
+        }
+        .cost-table tr:nth-child(even) td { background: #F8FAFC; }
+        .cost-table tr:hover td { background: #EDF5FF; }
+        .cost-table .category { font-weight: 600; color: var(--sf-accent); }
+        .tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .tag.search { background: #DEEBFF; color: #0747A6; }
+        .tag.agent { background: #E3FCEF; color: #006644; }
+        .tag.both { background: #EAE6FF; color: #403294; }
+        .tag.new { background: #FFEBE6; color: #BF2600; }
+        code, .code-block {
+            font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+        }
+        code {
+            background: #F0F2F5;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.87rem;
+        }
+        .code-block {
+            background: #1E1E1E;
+            color: #D4D4D4;
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin: 16px 0;
+            font-size: 0.82rem;
+            line-height: 1.7;
+            overflow-x: auto;
+        }
+        .code-block .kw { color: #569CD6; }
+        .code-block .str { color: #CE9178; }
+        .code-block .cm { color: #6A9955; }
+        .code-block .fn { color: #DCDCAA; }
+        .code-block .num { color: #B5CEA8; }
+        .code-block .key { color: #9CDCFE; }
+        .tip-box {
+            background: #FFFAE6;
+            border: 1px solid #FFE380;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin: 20px 0;
+            font-size: 0.92rem;
+        }
+        .tip-box strong { color: #974F0C; }
+        .info-box {
+            background: #EDF5FF;
+            border: 1px solid #B3D4FF;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin: 20px 0;
+            font-size: 0.92rem;
+        }
+        .info-box strong { color: #0747A6; }
+        .warn-box {
+            background: #FFEBE6;
+            border: 1px solid #FF8F73;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin: 20px 0;
+            font-size: 0.92rem;
+        }
+        .warn-box strong { color: #BF2600; }
+        .feature-card {
+            border: 2px solid var(--sf-border);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 16px 0;
+            position: relative;
+        }
+        .feature-card.highlight { border-color: var(--sf-blue); }
+        .feature-card h4 {
+            font-size: 1.05rem;
+            color: var(--sf-dark);
+            margin-bottom: 10px;
+        }
+        .feature-card p { font-size: 0.93rem; color: #505F79; }
+        ul { padding-left: 20px; margin: 8px 0; }
+        li { margin-bottom: 6px; font-size: 0.93rem; }
+        .badge-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) {
+            .two-col { grid-template-columns: 1fr; }
+            section { padding: 24px 20px; }
+            .header h1 { font-size: 1.6rem; }
+            .toc-grid { grid-template-columns: 1fr; }
+        }
+        .footer {
+            text-align: center;
+            padding: 32px 0 40px;
+            color: var(--sf-gray);
+            font-size: 0.85rem;
+        }
+        .footer a { color: var(--sf-blue); text-decoration: none; }
+        .comparison-arrow {
+            text-align: center;
+            color: var(--sf-blue);
+            font-size: 1.5rem;
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="container">
+        <h1>Cortex Agent 拡張ガイド</h1>
+        <p>Search カラム追加・スコアリング・上限設定・カスタムツール — 実装パターン集</p>
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- TOC -->
+    <div class="toc">
+        <h2>目次</h2>
+        <div class="toc-grid">
+            <a href="#search-columns"><span class="num">1</span> Search カラム拡張（metadata_columns / id / title）</a>
+            <a href="#time-decay"><span class="num">2</span> 更新日時の優先（Time Decay）</a>
+            <a href="#citation-url"><span class="num">3</span> 参考リンク URL の自動引用</a>
+            <a href="#filter"><span class="num">4</span> フィルター条件の活用</a>
+            <a href="#scoring"><span class="num">5</span> スコアリングカスタマイズ</a>
+            <a href="#budget"><span class="num">6</span> トークン数・推論時間の上限設定</a>
+            <a href="#resource-budget"><span class="num">7</span> リソースバジェット（月間クレジット上限）</a>
+            <a href="#custom-tools"><span class="num">8</span> カスタムツール（UDF / SP）</a>
+            <a href="#web-search"><span class="num">9</span> Web 検索ツール</a>
+            <a href="#data-to-chart"><span class="num">10</span> Data to Chart（可視化）</a>
+            <a href="#tool-choice"><span class="num">11</span> ツール選択制御（tool_choice）</a>
+            <a href="#instructions"><span class="num">12</span> 指示文の最適化（Instructions）</a>
+            <a href="#threads"><span class="num">13</span> スレッド（会話コンテキスト管理）</a>
+            <a href="#feedback"><span class="num">14</span> フィードバック収集</a>
+            <a href="#monitor"><span class="num">15</span> モニタリングとコスト監視</a>
+        </div>
+    </div>
+
+    <!-- 1. Search Column Extensions -->
+    <section id="search-columns">
+        <h2>1. Search カラム拡張</h2>
+        <div class="badge-row">
+            <span class="tag search">Cortex Search</span>
+            <span class="tag agent">Agent tool_resources</span>
+        </div>
+
+        <p>Cortex Search Service を Agent に登録する際、<code>tool_resources</code> で検索・メタデータ・ID・タイトルの各カラムを指定できます。</p>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>パラメータ</th>
+                    <th>説明</th>
+                    <th>本デモの設定例</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">search_columns</td>
+                    <td>検索対象のテキストカラム（ベクトル検索+テキスト検索の対象）</td>
+                    <td><code>["chunk_text"]</code></td>
+                </tr>
+                <tr>
+                    <td class="category">metadata_columns</td>
+                    <td>検索結果に含めるメタデータカラム。Agent が回答生成時に参照可能</td>
+                    <td><code>["doc_title", "source_url", "file_name"]</code></td>
+                </tr>
+                <tr>
+                    <td class="category">id_column</td>
+                    <td>ドキュメントの一意識別子。自動引用（citation）の <code>doc_id</code> に使用される</td>
+                    <td><code>"source_url"</code></td>
+                </tr>
+                <tr>
+                    <td class="category">title_column</td>
+                    <td>ドキュメントのタイトル。自動引用の <code>doc_title</code> に使用される</td>
+                    <td><code>"doc_title"</code></td>
+                </tr>
+                <tr>
+                    <td class="category">max_results</td>
+                    <td>検索結果の最大件数（デフォルト: サービス依存）</td>
+                    <td><code>5</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="code-block">
+            <span class="cm">// Agent の tool_resources 設定例（SQL CREATE AGENT 内）</span><br>
+            <span class="str">"tool_resources"</span>: {<br>
+            &nbsp;&nbsp;<span class="str">"search_caa_guidelines"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"search_service"</span>: <span class="str">"DEMO.KAIBALAB.CAA_GUIDELINE_SEARCH"</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"search_columns"</span>: [<span class="str">"chunk_text"</span>],<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"metadata_columns"</span>: [<span class="str">"doc_title"</span>, <span class="str">"source_url"</span>, <span class="str">"file_name"</span>],<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"id_column"</span>: <span class="str">"source_url"</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"title_column"</span>: <span class="str">"doc_title"</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"max_results"</span>: <span class="num">5</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">"execution_environment"</span>: { <span class="str">"type"</span>: <span class="str">"warehouse"</span>, <span class="str">"warehouse"</span>: <span class="str">"COMPUTE_WH"</span> }<br>
+            &nbsp;&nbsp;}<br>
+            }
+        </div>
+
+        <div class="tip-box">
+            <strong>ポイント:</strong> <code>id_column</code> と <code>title_column</code> を設定すると、Agent フレームワークが自動的に citation（引用注釈）を生成します。LLM の指示文だけに頼るより正確なリンク出力が可能です。
+        </div>
+    </section>
+
+    <!-- 2. Time Decay -->
+    <section id="time-decay">
+        <h2>2. 更新日時の優先（Time Decay）</h2>
+        <div class="badge-row">
+            <span class="tag search">Cortex Search</span>
+        </div>
+
+        <p>Cortex Search の <strong>Time Decay</strong> 機能を使うと、タイムスタンプカラムに基づいて<strong>新しいドキュメントを上位にランキング</strong>できます。</p>
+
+        <h3>前提条件</h3>
+        <ul>
+            <li>Cortex Search Service のソーステーブルにタイムスタンプ型カラム（例: <code>updated_at</code>）が必要</li>
+            <li>CREATE CORTEX SEARCH SERVICE 時にそのカラムを ATTRIBUTES に含める</li>
+        </ul>
+
+        <h3>実装手順</h3>
+
+        <div class="feature-card highlight">
+            <h4>Step 1: ソーステーブルにタイムスタンプカラムを追加</h4>
+            <div class="code-block">
+                <span class="kw">ALTER TABLE</span> DEMO.KAIBALAB.RAG_PDF_CHUNKS<br>
+                &nbsp;&nbsp;<span class="kw">ADD COLUMN</span> updated_at <span class="kw">TIMESTAMP_LTZ</span> <span class="kw">DEFAULT</span> <span class="fn">CURRENT_TIMESTAMP</span>();
+            </div>
+        </div>
+
+        <div class="feature-card highlight">
+            <h4>Step 2: Search Service を再作成（ATTRIBUTES に追加）</h4>
+            <div class="code-block">
+                <span class="kw">CREATE OR REPLACE</span> CORTEX SEARCH SERVICE DEMO.KAIBALAB.CAA_GUIDELINE_SEARCH<br>
+                &nbsp;&nbsp;<span class="kw">ON</span> chunk_text<br>
+                &nbsp;&nbsp;<span class="kw">ATTRIBUTES</span> doc_title, source_url, file_name, <strong>updated_at</strong><br>
+                &nbsp;&nbsp;<span class="kw">WAREHOUSE</span> = COMPUTE_WH<br>
+                &nbsp;&nbsp;<span class="kw">TARGET_LAG</span> = <span class="str">'1 hour'</span><br>
+                <span class="kw">AS</span> (<br>
+                &nbsp;&nbsp;<span class="kw">SELECT</span> chunk_id, chunk_text, doc_title, source_url, file_name, updated_at<br>
+                &nbsp;&nbsp;<span class="kw">FROM</span> DEMO.KAIBALAB.RAG_PDF_CHUNKS<br>
+                );
+            </div>
+        </div>
+
+        <div class="feature-card highlight">
+            <h4>Step 3: クエリ時に scoring_config で Time Decay を指定</h4>
+            <p>Agent が動的に time_decay パラメータを調整可能。または REST API / SQL から直接指定：</p>
+            <div class="code-block">
+                {<br>
+                &nbsp;&nbsp;<span class="str">"scoring_config"</span>: {<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"functions"</span>: {<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"time_decays"</span>: [{<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"column"</span>: <span class="str">"updated_at"</span>,<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"weight"</span>: <span class="num">1</span>,<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"limit_hours"</span>: <span class="num">720</span> &nbsp;<span class="cm">// 30日以上前のドキュメントはブーストなし</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}]<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+                &nbsp;&nbsp;}<br>
+                }
+            </div>
+        </div>
+
+        <div class="info-box">
+            <strong>Agent との連携:</strong> Cortex Agent は検索パラメータ（filter、metadata_columns、結果数、time_decay 等）をユーザーのクエリに基づいて<strong>動的に調整</strong>できます。ツールの Column Description を適切に記述すると、Agent が自動的に最適なパラメータを選択します。
+        </div>
+    </section>
+
+    <!-- 3. Citation URL -->
+    <section id="citation-url">
+        <h2>3. 参考リンク URL の自動引用（Citation）</h2>
+        <div class="badge-row">
+            <span class="tag agent">Agent</span>
+            <span class="tag search">Cortex Search</span>
+        </div>
+
+        <p>Agent は Cortex Search の検索結果から自動的に<strong>引用注釈（citation annotation）</strong>を生成できます。</p>
+
+        <h3>仕組み</h3>
+        <div class="two-col">
+            <div class="feature-card">
+                <h4>id_column を設定した場合</h4>
+                <p>検索結果の <code>id_column</code> の値が <code>doc_id</code> フィールドとして citation に含まれる。</p>
+                <p>例: <code>"doc_id": "https://www.caa.go.jp/..."</code></p>
+            </div>
+            <div class="feature-card">
+                <h4>title_column を設定した場合</h4>
+                <p>検索結果の <code>title_column</code> の値が <code>doc_title</code> フィールドとして citation に含まれる。</p>
+                <p>例: <code>"doc_title": "おとり広告に関する運用基準"</code></p>
+            </div>
+        </div>
+
+        <h3>レスポンスの citation 構造</h3>
+        <div class="code-block">
+            <span class="cm">// Agent Streaming レスポンスの response.text.annotation イベント</span><br>
+            {<br>
+            &nbsp;&nbsp;<span class="str">"type"</span>: <span class="str">"cortex_search_citation"</span>,<br>
+            &nbsp;&nbsp;<span class="str">"index"</span>: <span class="num">0</span>,<br>
+            &nbsp;&nbsp;<span class="str">"search_result_id"</span>: <span class="str">"cs_61987ff6-..."</span>,<br>
+            &nbsp;&nbsp;<span class="str">"doc_id"</span>: <span class="str">"https://www.caa.go.jp/policies/.../100121premiums_31.pdf"</span>,<br>
+            &nbsp;&nbsp;<span class="str">"doc_title"</span>: <span class="str">"おとり広告に関する表示等の運用基準"</span>,<br>
+            &nbsp;&nbsp;<span class="str">"text"</span>: <span class="str">"該当箇所のテキスト抜粋..."</span><br>
+            }
+        </div>
+
+        <div class="tip-box">
+            <strong>ベストプラクティス:</strong> <code>id_column</code> に URL を設定すれば、クライアントアプリ側で <code>doc_id</code> をハイパーリンクとして直接使用できます。LLM に URL を推測させるよりはるかに正確です。
+        </div>
+    </section>
+
+    <!-- 4. Filter -->
+    <section id="filter">
+        <h2>4. フィルター条件の活用</h2>
+        <div class="badge-row">
+            <span class="tag search">Cortex Search</span>
+            <span class="tag agent">Agent 動的調整</span>
+        </div>
+
+        <p>Cortex Search の ATTRIBUTES カラムに対して<strong>フィルター条件</strong>を適用し、検索範囲を絞り込めます。Agent は Column Description に基づいてフィルターを動的に生成します。</p>
+
+        <div class="code-block">
+            <span class="cm">// REST API での直接フィルター指定</span><br>
+            {<br>
+            &nbsp;&nbsp;<span class="str">"query"</span>: <span class="str">"おとり広告の規制について"</span>,<br>
+            &nbsp;&nbsp;<span class="str">"filter"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"@eq"</span>: { <span class="str">"doc_title"</span>: <span class="str">"おとり広告に関する表示等の運用基準"</span> }<br>
+            &nbsp;&nbsp;},<br>
+            &nbsp;&nbsp;<span class="str">"columns"</span>: [<span class="str">"chunk_text"</span>, <span class="str">"doc_title"</span>, <span class="str">"source_url"</span>],<br>
+            &nbsp;&nbsp;<span class="str">"limit"</span>: <span class="num">5</span><br>
+            }
+        </div>
+
+        <h3>Agent での Column Description 設定</h3>
+        <p>Snowsight UI の「Tool details」で各カラムの説明を記述すると、Agent が適切なフィルターを動的に生成します。</p>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>カラム</th>
+                    <th>Column Description 例</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">doc_title</td>
+                    <td>ガイドラインの正式名称。例: "おとり広告に関する表示等の運用基準", "不当景品類及び不当表示防止法の一部を改正する法律の施行について"</td>
+                </tr>
+                <tr>
+                    <td class="category">file_name</td>
+                    <td>PDFファイル名。例: "100121premiums_31.pdf"</td>
+                </tr>
+                <tr>
+                    <td class="category">source_url</td>
+                    <td>消費者庁の公式ガイドラインPDFへのURL</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 5. Scoring -->
+    <section id="scoring">
+        <h2>5. スコアリングカスタマイズ</h2>
+        <div class="badge-row">
+            <span class="tag search">Cortex Search</span>
+        </div>
+
+        <p>検索結果のランキングを細かく制御できます。</p>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>機能</th>
+                    <th>説明</th>
+                    <th>ユースケース</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">Numeric Boosts</td>
+                    <td>数値型カラム（likes, clicks 等）に基づくスコアブースト</td>
+                    <td>人気度・閲覧数で上位表示</td>
+                </tr>
+                <tr>
+                    <td class="category">Time Decays</td>
+                    <td>タイムスタンプカラムに基づく新しさのブースト</td>
+                    <td>最新のドキュメントを優先</td>
+                </tr>
+                <tr>
+                    <td class="category">Component Weights</td>
+                    <td>ベクトル検索・テキスト検索・リランカーの重み調整</td>
+                    <td>キーワード重視 vs 意味重視のバランス</td>
+                </tr>
+                <tr>
+                    <td class="category">Reranking 無効化</td>
+                    <td>リランカーを OFF にしてレイテンシを 100-300ms 削減</td>
+                    <td>速度優先のリアルタイムアプリ</td>
+                </tr>
+                <tr>
+                    <td class="category">Scoring Profiles</td>
+                    <td>名前付きスコアリング設定。複数クエリで再利用可能</td>
+                    <td>本番環境での設定管理</td>
+                </tr>
+                <tr>
+                    <td class="category">Diversity</td>
+                    <td>同一ドキュメントからの重複結果を制限</td>
+                    <td>チャンクの偏り防止</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="code-block">
+            <span class="cm">// Diversity の例: 同一ファイルから最大2チャンクまで</span><br>
+            {<br>
+            &nbsp;&nbsp;<span class="str">"scoring_config"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"diversity"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"group_by"</span>: [<span class="str">"file_name"</span>],<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"max_results"</span>: <span class="num">2</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+            &nbsp;&nbsp;}<br>
+            }
+        </div>
+    </section>
+
+    <!-- 6. Budget (Tokens / Time) -->
+    <section id="budget">
+        <h2>6. トークン数・推論時間の上限設定（Budget）</h2>
+        <div class="badge-row">
+            <span class="tag agent">Agent Orchestration</span>
+            <span class="tag new">重要</span>
+        </div>
+
+        <p>Agent の <strong>orchestration.budget</strong> で、1回のリクエストあたりの<strong>トークン上限</strong>と<strong>時間上限</strong>を設定できます。どちらかの上限に先に達した時点で Agent は応答生成を停止します。</p>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>パラメータ</th>
+                    <th>型</th>
+                    <th>説明</th>
+                    <th>推奨値</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">seconds</td>
+                    <td>integer</td>
+                    <td>Agent のオーケストレーション処理の最大秒数</td>
+                    <td>30〜120</td>
+                </tr>
+                <tr>
+                    <td class="category">tokens</td>
+                    <td>integer</td>
+                    <td>オーケストレーションに使用するトークンの最大数（Cortex Analyst / Search / ツール実行は<strong>含まない</strong>）</td>
+                    <td>4000〜16000</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>SQL での設定（CREATE AGENT）</h3>
+        <div class="code-block">
+            <span class="kw">CREATE OR REPLACE</span> AGENT DEMO.KAIBALAB.LEGAL_GUIDE_AGENT<br>
+            &nbsp;&nbsp;<span class="kw">FROM SPECIFICATION</span> $$<br>
+            {<br>
+            &nbsp;&nbsp;<span class="str">"orchestration"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"budget"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"seconds"</span>: <span class="num">60</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"tokens"</span>: <span class="num">8000</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+            &nbsp;&nbsp;},<br>
+            &nbsp;&nbsp;...<br>
+            }<br>
+            $$;
+        </div>
+
+        <h3>REST API での設定（agent:run リクエスト）</h3>
+        <div class="code-block">
+            {<br>
+            &nbsp;&nbsp;<span class="str">"orchestration"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"budget"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"seconds"</span>: <span class="num">30</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"tokens"</span>: <span class="num">16000</span><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+            &nbsp;&nbsp;},<br>
+            &nbsp;&nbsp;<span class="str">"messages"</span>: [...]<br>
+            }
+        </div>
+
+        <div class="warn-box">
+            <strong>注意:</strong> tokens パラメータはオーケストレーション（計画立案・リフレクション）にのみ適用されます。Cortex Analyst の SQL 生成や Cortex Search の検索で消費されるトークンは<strong>含まれません</strong>。全体のコスト制御にはリソースバジェット（次セクション）を併用してください。
+        </div>
+
+        <div class="tip-box">
+            <strong>Snowsight UI からの設定:</strong> Agent 編集画面 → Orchestration → Budget configuration で、時間制限とトークン制限をGUIから設定可能です。
+        </div>
+    </section>
+
+    <!-- 7. Resource Budget -->
+    <section id="resource-budget">
+        <h2>7. リソースバジェット（月間クレジット上限）</h2>
+        <div class="badge-row">
+            <span class="tag agent">Agent</span>
+            <span class="tag new">コスト管理</span>
+        </div>
+
+        <p>タグベースの<strong>リソースバジェット</strong>で、Agent オブジェクト単位の月間クレジット消費上限を設定できます。閾値到達時にストアドプロシージャを自動実行（通知 / アクセス停止 等）。</p>
+
+        <div class="code-block">
+            <span class="cm">-- 1. タグ作成 & Agent に適用</span><br>
+            <span class="kw">CREATE TAG</span> cost_mgmt.tags.cost_center <span class="kw">ALLOWED_VALUES</span> <span class="str">'rag-demo'</span>;<br>
+            <span class="kw">ALTER AGENT</span> DEMO.KAIBALAB.LEGAL_GUIDE_AGENT<br>
+            &nbsp;&nbsp;<span class="kw">SET TAG</span> cost_mgmt.tags.cost_center = <span class="str">'rag-demo'</span>;<br><br>
+            <span class="cm">-- 2. Budget 作成（Snowsight UI: Admin → Cost management → Budgets）</span><br>
+            <span class="cm">-- 月間上限: 1000 credits</span><br>
+            <span class="cm">-- 80% 到達: メール通知</span><br>
+            <span class="cm">-- 100% 到達: アクセス停止（SP 実行）</span>
+        </div>
+
+        <div class="info-box">
+            <strong>Budget 反映遅延:</strong> 通常最大8時間（低レイテンシオプション有効時: 2時間）。80%閾値で早めの通知を推奨。
+        </div>
+    </section>
+
+    <!-- 8. Custom Tools -->
+    <section id="custom-tools">
+        <h2>8. カスタムツール（UDF / Stored Procedure）</h2>
+        <div class="badge-row">
+            <span class="tag agent">Agent</span>
+        </div>
+
+        <p>Stored Procedure や UDF を Agent のツールとして登録し、<strong>独自のビジネスロジック</strong>を実行できます。</p>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>ユースケース</th>
+                    <th>実装方法</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">外部API連携</td>
+                    <td>External Access Integration + UDF で外部 REST API を呼び出し</td>
+                </tr>
+                <tr>
+                    <td class="category">計算ロジック</td>
+                    <td>UDF で景品規制の金額計算など独自ロジックを実装</td>
+                </tr>
+                <tr>
+                    <td class="category">データ更新</td>
+                    <td>Stored Procedure で Agent 経由のデータ書き込み</td>
+                </tr>
+                <tr>
+                    <td class="category">メール送信</td>
+                    <td>Stored Procedure + SYSTEM$SEND_EMAIL で通知</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="code-block">
+            <span class="cm">// tool_resources でのカスタムツール設定</span><br>
+            <span class="str">"tools"</span>: [{<br>
+            &nbsp;&nbsp;<span class="str">"tool_spec"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"type"</span>: <span class="str">"generic"</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"name"</span>: <span class="str">"calculate_premium_limit"</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"description"</span>: <span class="str">"景品類の最高額を計算する"</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"input_schema"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"type"</span>: <span class="str">"object"</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"properties"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"transaction_amount"</span>: { <span class="str">"type"</span>: <span class="str">"number"</span>, <span class="str">"description"</span>: <span class="str">"取引価額（円）"</span> }<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;},<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"required"</span>: [<span class="str">"transaction_amount"</span>]<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+            &nbsp;&nbsp;}<br>
+            }],<br>
+            <span class="str">"tool_resources"</span>: {<br>
+            &nbsp;&nbsp;<span class="str">"calculate_premium_limit"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"type"</span>: <span class="str">"function"</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"identifier"</span>: <span class="str">"DEMO.KAIBALAB.CALC_PREMIUM_LIMIT"</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"execution_environment"</span>: { <span class="str">"type"</span>: <span class="str">"warehouse"</span>, <span class="str">"warehouse"</span>: <span class="str">"COMPUTE_WH"</span> }<br>
+            &nbsp;&nbsp;}<br>
+            }
+        </div>
+    </section>
+
+    <!-- 9. Web Search -->
+    <section id="web-search">
+        <h2>9. Web 検索ツール</h2>
+        <div class="badge-row">
+            <span class="tag agent">Agent</span>
+        </div>
+
+        <p>Agent にリアルタイムの Web 検索機能を追加できます（Brave Web Search API 使用）。Snowflake 側で ZDR（Zero Data Retention）が有効化済み。</p>
+
+        <ul>
+            <li><strong>有効化:</strong> Snowsight → AI & ML → Agents → Settings → Web search toggle</li>
+            <li><strong>用途:</strong> 最新の法改正情報、ニュース記事との組み合わせ</li>
+            <li><strong>注意:</strong> クエリと結果はパブリックインターネットを経由</li>
+        </ul>
+    </section>
+
+    <!-- 10. Data to Chart -->
+    <section id="data-to-chart">
+        <h2>10. Data to Chart（可視化）</h2>
+        <div class="badge-row">
+            <span class="tag agent">Agent</span>
+        </div>
+
+        <p>Agent がクエリ結果から<strong>自動的にチャート（Vega-Lite 仕様）</strong>を生成します。tools 配列に含めるだけで有効化。</p>
+        <p>Cortex Analyst と組み合わせると、SQL クエリ結果の可視化が可能。</p>
+    </section>
+
+    <!-- 11. Tool Choice -->
+    <section id="tool-choice">
+        <h2>11. ツール選択制御（tool_choice）</h2>
+        <div class="badge-row">
+            <span class="tag agent">Agent Run API</span>
+        </div>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>type</th>
+                    <th>説明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">auto</td>
+                    <td>Agent が自動でツールを選択（デフォルト）</td>
+                </tr>
+                <tr>
+                    <td class="category">required</td>
+                    <td>必ず1つ以上のツールを使用</td>
+                </tr>
+                <tr>
+                    <td class="category">tool</td>
+                    <td>指定した名前のツールのみ使用</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 12. Instructions -->
+    <section id="instructions">
+        <h2>12. 指示文の最適化（Instructions）</h2>
+        <div class="badge-row">
+            <span class="tag agent">Agent</span>
+        </div>
+
+        <p>Agent の指示文は3種類に分かれ、それぞれ異なる目的に使用されます。</p>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>指示種別</th>
+                    <th>用途</th>
+                    <th>例</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">orchestration</td>
+                    <td>ツール選択・計画立案の方針</td>
+                    <td>"返金に関する質問にはSearchツールを使用"</td>
+                </tr>
+                <tr>
+                    <td class="category">response</td>
+                    <td>回答のトーン・形式・ブランド</td>
+                    <td>"常に日本語で回答。簡潔かつ丁寧に"</td>
+                </tr>
+                <tr>
+                    <td class="category">system</td>
+                    <td>システムレベルの基本指示</td>
+                    <td>"あなたは景品表示法の専門アシスタントです"</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="tip-box">
+            <strong>コスト面の注意:</strong> 指示文が長いほど入力トークン数が増加します。必要最低限の指示にし、具体例は1-2個にとどめましょう。
+        </div>
+    </section>
+
+    <!-- 13. Threads -->
+    <section id="threads">
+        <h2>13. スレッド（会話コンテキスト管理）</h2>
+        <div class="badge-row">
+            <span class="tag agent">Agent</span>
+        </div>
+
+        <p>Thread オブジェクトを使うと、サーバー側で会話コンテキストが保持されます。クライアント側で履歴を毎回送信する必要がなくなります。</p>
+
+        <div class="code-block">
+            <span class="cm">// 1. スレッド作成</span><br>
+            POST /api/v2/cortex/threads<br><br>
+            <span class="cm">// 2. スレッド付きでリクエスト</span><br>
+            POST /api/v2/databases/DEMO/schemas/KAIBALAB/agents/LEGAL_GUIDE_AGENT:run<br>
+            {<br>
+            &nbsp;&nbsp;<span class="str">"thread_id"</span>: <span class="str">"&lt;thread_id&gt;"</span>,<br>
+            &nbsp;&nbsp;<span class="str">"parent_message_id"</span>: <span class="num">0</span>,<br>
+            &nbsp;&nbsp;<span class="str">"messages"</span>: [{ <span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: [...] }]<br>
+            }
+        </div>
+    </section>
+
+    <!-- 14. Feedback -->
+    <section id="feedback">
+        <h2>14. フィードバック収集</h2>
+        <div class="badge-row">
+            <span class="tag agent">Agent</span>
+        </div>
+
+        <p>ユーザーからの評価（positive/negative）とテキストフィードバックを収集し、Agent の改善に活用できます。</p>
+
+        <div class="code-block">
+            POST /api/v2/databases/DEMO/schemas/KAIBALAB/agents/LEGAL_GUIDE_AGENT:feedback<br>
+            {<br>
+            &nbsp;&nbsp;<span class="str">"request_id"</span>: <span class="str">"&lt;request-id&gt;"</span>,<br>
+            &nbsp;&nbsp;<span class="str">"positive"</span>: <span class="num">true</span>,<br>
+            &nbsp;&nbsp;<span class="str">"feedback_message"</span>: <span class="str">"正確な参照リンク付きで分かりやすかった"</span>,<br>
+            &nbsp;&nbsp;<span class="str">"categories"</span>: [<span class="str">"accuracy"</span>, <span class="str">"citations"</span>]<br>
+            }
+        </div>
+    </section>
+
+    <!-- 15. Monitoring -->
+    <section id="monitor">
+        <h2>15. モニタリングとコスト監視</h2>
+        <div class="badge-row">
+            <span class="tag both">Agent + Search</span>
+        </div>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>ビュー</th>
+                    <th>内容</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">CORTEX_AGENT_USAGE_HISTORY</td>
+                    <td>Agent のリクエスト別トークン・クレジット消費。TOKENS_GRANULAR でサービスタイプ・モデル別の内訳</td>
+                </tr>
+                <tr>
+                    <td class="category">CORTEX_SEARCH_DAILY_USAGE_HISTORY</td>
+                    <td>Cortex Search の日次 Embedding / Serving クレジット消費</td>
+                </tr>
+                <tr>
+                    <td class="category">CORTEX_SEARCH_SERVING_USAGE_HISTORY</td>
+                    <td>Cortex Search の時間別サービングクレジット</td>
+                </tr>
+                <tr>
+                    <td class="category">CORTEX_AI_FUNCTIONS_USAGE_HISTORY</td>
+                    <td>AI_PARSE_DOCUMENT 等の Cortex AI Functions の利用履歴</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="code-block">
+            <span class="cm">-- Agent レスポンスのトークン使用量を確認（metadata.usage）</span><br>
+            <span class="cm">-- Streaming: response イベントの metadata.usage.tokens_consumed</span><br>
+            <span class="cm">-- Non-streaming: response JSON の metadata.usage.tokens_consumed</span><br><br>
+            <span class="cm">// レスポンス例:</span><br>
+            <span class="str">"metadata"</span>: {<br>
+            &nbsp;&nbsp;<span class="str">"usage"</span>: {<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"tokens_consumed"</span>: [{<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"model_name"</span>: <span class="str">"claude-4-sonnet"</span>,<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"input_tokens"</span>: { <span class="str">"total"</span>: <span class="num">3200</span>, <span class="str">"cache_read"</span>: <span class="num">1500</span>, <span class="str">"uncached"</span>: <span class="num">1700</span> },<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"output_tokens"</span>: { <span class="str">"total"</span>: <span class="num">450</span> }<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;}]<br>
+            &nbsp;&nbsp;}<br>
+            }
+        </div>
+    </section>
+
+    <!-- Summary Table -->
+    <section>
+        <h2>拡張機能一覧サマリー</h2>
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>機能</th>
+                    <th>対象</th>
+                    <th>設定場所</th>
+                    <th>本デモへの適用</th>
+                    <th>公式ドキュメント</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">metadata_columns</td>
+                    <td><span class="tag search">Search</span></td>
+                    <td>tool_resources</td>
+                    <td>適用済み</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-run#toolresource" target="_blank">Agent Run API — ToolResource</a></td>
+                </tr>
+                <tr>
+                    <td class="category">id_column / title_column</td>
+                    <td><span class="tag agent">Agent</span></td>
+                    <td>tool_resources</td>
+                    <td>適用済み</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-run#annotation" target="_blank">Agent Run API — Annotation (Citation)</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Time Decay</td>
+                    <td><span class="tag search">Search</span></td>
+                    <td>scoring_config / ATTRIBUTES</td>
+                    <td>updated_at 追加で対応可</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-customize-scoring#numeric-boosts-and-time-decays" target="_blank">Customizing Cortex Search scoring — Time Decays</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Filter</td>
+                    <td><span class="tag search">Search</span></td>
+                    <td>Column Description</td>
+                    <td>doc_title 等で対応可</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/query-cortex-search-service" target="_blank">Query a Cortex Search Service — Filter</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Numeric Boosts</td>
+                    <td><span class="tag search">Search</span></td>
+                    <td>scoring_config.functions</td>
+                    <td>人気度カラム追加で対応可</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-customize-scoring#numeric-boosts-and-time-decays" target="_blank">Customizing Cortex Search scoring — Numeric Boosts</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Component Weights</td>
+                    <td><span class="tag search">Search</span></td>
+                    <td>scoring_config.functions.weights</td>
+                    <td>本番チューニング時</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-customize-scoring#component-weights" target="_blank">Customizing Cortex Search scoring — Component Weights</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Reranking 制御</td>
+                    <td><span class="tag search">Search</span></td>
+                    <td>scoring_config.reranker</td>
+                    <td>レイテンシ重視時</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-customize-scoring#reranking" target="_blank">Customizing Cortex Search scoring — Reranking</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Scoring Profiles</td>
+                    <td><span class="tag search">Search</span></td>
+                    <td>ALTER CORTEX SEARCH SERVICE</td>
+                    <td>本番チューニング時</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-customize-scoring#named-scoring-profiles" target="_blank">Customizing Cortex Search scoring — Named Scoring Profiles</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Diversity</td>
+                    <td><span class="tag search">Search</span></td>
+                    <td>scoring_config.diversity</td>
+                    <td>file_name での重複制御</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-customize-scoring#diversity" target="_blank">Customizing Cortex Search scoring — Diversity</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Component Scores</td>
+                    <td><span class="tag search">Search</span></td>
+                    <td>レスポンス @scores</td>
+                    <td>デバッグ・閾値判定時</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-customize-scoring#component-scores" target="_blank">Customizing Cortex Search scoring — Component Scores</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Budget (tokens / seconds)</td>
+                    <td><span class="tag agent">Agent</span></td>
+                    <td>orchestration.budget</td>
+                    <td>追加推奨</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-run#orchestrationconfig" target="_blank">Agent Run API — OrchestrationConfig</a><br><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-manage#specify-orchestration" target="_blank">Configure Agents — Specify orchestration</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Resource Budget</td>
+                    <td><span class="tag agent">Agent</span></td>
+                    <td>Tag + Budget</td>
+                    <td>本番運用時に追加推奨</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/budgets" target="_blank">Budgets — Snowflake Docs</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Custom Tools (UDF / SP)</td>
+                    <td><span class="tag agent">Agent</span></td>
+                    <td>tools + tool_resources</td>
+                    <td>景品額計算等で拡張可</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-manage#add-tools" target="_blank">Configure Agents — Add tools (Custom tools)</a><br><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-run#toolresource" target="_blank">Agent Run API — ToolResource (generic)</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Web Search</td>
+                    <td><span class="tag agent">Agent</span></td>
+                    <td>Account Settings</td>
+                    <td>最新法改正情報で活用可</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents#label-cortex-agents-web-search" target="_blank">Cortex Agents — Web search</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Data to Chart</td>
+                    <td><span class="tag agent">Agent</span></td>
+                    <td>tools 配列</td>
+                    <td>Analyst 併用時に活用可</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-manage#add-tools" target="_blank">Configure Agents — Add tools</a></td>
+                </tr>
+                <tr>
+                    <td class="category">tool_choice</td>
+                    <td><span class="tag agent">Agent</span></td>
+                    <td>agent:run リクエスト</td>
+                    <td>特定ツール強制時</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-run#toolchoice" target="_blank">Agent Run API — ToolChoice</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Instructions 最適化</td>
+                    <td><span class="tag agent">Agent</span></td>
+                    <td>orchestration / response / system</td>
+                    <td>適用済み</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-run#agentinstructions" target="_blank">Agent Run API — AgentInstructions</a><br><a href="https://www.snowflake.com/en/developers/guides/best-practices-to-building-cortex-agents/#importance-of-cortex-agent-instructions" target="_blank">Best Practices — Instructions</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Threads</td>
+                    <td><span class="tag agent">Agent</span></td>
+                    <td>REST API</td>
+                    <td>アプリ組込み時</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-manage#create-a-thread" target="_blank">Configure Agents — Create a thread</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Feedback</td>
+                    <td><span class="tag agent">Agent</span></td>
+                    <td>REST API</td>
+                    <td>アプリ組込み時</td>
+                    <td><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-manage#collect-feedback-about-the-agent" target="_blank">Configure Agents — Collect feedback</a></td>
+                </tr>
+                <tr>
+                    <td class="category">Monitoring</td>
+                    <td><span class="tag both">Agent + Search</span></td>
+                    <td>ACCOUNT_USAGE ビュー</td>
+                    <td>運用時に必須</td>
+                    <td><a href="https://docs.snowflake.com/en/sql-reference/account-usage/cortex_agent_usage_history" target="_blank">CORTEX_AGENT_USAGE_HISTORY</a><br><a href="https://docs.snowflake.com/en/sql-reference/account-usage/cortex_search_daily_usage_history" target="_blank">CORTEX_SEARCH_DAILY_USAGE_HISTORY</a></td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- References -->
+    <section>
+        <h2>参考リンク</h2>
+        <ul>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-manage" target="_blank">Configure and interact with Agents — Snowflake Docs</a></li>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-run" target="_blank">Cortex Agents Run API — Snowflake Docs</a></li>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-resource-budgets" target="_blank">Resource budgets for Cortex Agents — Snowflake Docs</a></li>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-customize-scoring" target="_blank">Customizing Cortex Search scoring — Snowflake Docs</a></li>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/query-cortex-search-service" target="_blank">Query a Cortex Search Service — Snowflake Docs</a></li>
+            <li><a href="https://www.snowflake.com/en/developers/guides/best-practices-to-building-cortex-agents" target="_blank">Best Practices to Building Cortex Agents — Snowflake</a></li>
+        </ul>
+    </section>
+
+</div>
+
+<div class="footer">
+    <p>作成日: 2026年4月 | Snowflake Cortex Agent 拡張ガイド — DEMO.KAIBALAB</p>
+    <p>関連資料: <a href="rag_cost_guide.html">RAG コスト解説</a></p>
+</div>
+
+</body>
+</html>
