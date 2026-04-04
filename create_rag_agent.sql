@@ -68,41 +68,34 @@ INSERT INTO DEMO.KAIBALAB.RAG_PDF_URL_MAP VALUES
 -- =============================================================
 
 CREATE OR REPLACE TABLE DEMO.KAIBALAB.RAG_PDF_CHUNKS AS
-WITH recursive_chunks AS (
+WITH chunked AS (
     SELECT
-        file_name,
-        content,
-        page_count,
-        0 AS chunk_index,
-        SUBSTRING(content, 1, 1500) AS chunk_text,
-        LENGTH(content) AS total_length
-    FROM DEMO.KAIBALAB.RAG_PDF_PARSED
-    WHERE content IS NOT NULL
-
-    UNION ALL
-
-    SELECT
-        file_name,
-        content,
-        page_count,
-        chunk_index + 1,
-        SUBSTRING(content, 1 + (chunk_index + 1) * 1200, 1500),
-        total_length
-    FROM recursive_chunks
-    WHERE 1 + (chunk_index + 1) * 1200 <= total_length
+        p.file_name,
+        p.page_count,
+        c.index AS chunk_index,
+        c.value::STRING AS chunk_text
+    FROM DEMO.KAIBALAB.RAG_PDF_PARSED p,
+        LATERAL FLATTEN(
+            SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER(
+                p.content,
+                'markdown',
+                1500,
+                300
+            )
+        ) c
+    WHERE p.content IS NOT NULL
 )
 SELECT
-    c.file_name || '_chunk_' || LPAD(c.chunk_index::STRING, 4, '0') AS chunk_id,
-    c.file_name,
-    COALESCE(m.doc_title, c.file_name) AS doc_title,
+    ch.file_name || '_chunk_' || LPAD(ch.chunk_index::STRING, 4, '0') AS chunk_id,
+    ch.file_name,
+    COALESCE(m.doc_title, ch.file_name) AS doc_title,
     COALESCE(m.source_url, '') AS source_url,
-    c.chunk_index,
-    c.page_count,
-    c.chunk_text
-FROM recursive_chunks c
-LEFT JOIN DEMO.KAIBALAB.RAG_PDF_URL_MAP m ON c.file_name = m.file_name
-WHERE LENGTH(c.chunk_text) > 0
-ORDER BY c.file_name, c.chunk_index;
+    ch.chunk_index,
+    ch.page_count,
+    ch.chunk_text
+FROM chunked ch
+LEFT JOIN DEMO.KAIBALAB.RAG_PDF_URL_MAP m ON ch.file_name = m.file_name
+ORDER BY ch.file_name, ch.chunk_index;
 
 -- =============================================================
 -- Step 4: Cortex Search Service を作成
@@ -143,8 +136,8 @@ CREATE OR REPLACE AGENT DEMO.KAIBALAB.LEGAL_GUIDE_AGENT
     }
   },
   "instructions": {
-    "orchestration": "あなたは日本の景品表示法（不当景品類及び不当表示防止法）に関する専門的なガイドラインアシスタントです。消費者庁が公開しているガイドラインPDFの内容に基づいて、ユーザーの質問に正確に回答してください。回答は日本語で行ってください。\n\n【重要：参考資料URLについて】\n検索結果に含まれるsource_url列の値は消費者庁の正式なPDFリンクです。参考資料のURLは絶対に自分で生成・推測せず、検索結果のsource_url列の値をそのままコピーして使用してください。URLを短縮したり、パスを変更したりしないでください。\n\n【回答フォーマット】\n1. 質問に対する回答を記載\n2. 回答の末尾に必ず「参考資料」セクションを設け、検索結果のdoc_titleとsource_urlをそのまま使ってマークダウンリンク形式で記載してください。\n   例: - [比較広告に関する景品表示法上の考え方](https://www.caa.go.jp/policies/policy/representation/fair_labeling/guideline/pdf/100121premiums_37.pdf)",
-    "response": "回答は日本語で、簡潔かつ正確に行ってください。該当するガイドラインの条文や基準を引用してください。\n\n【絶対厳守】参考資料のURLは検索結果のsource_url列の値を一字一句そのまま使ってください。自分でURLを組み立てないでください。\n\n回答の最後には必ず以下の形式で参考資料を記載してください：\n\n---\n**参考資料:**\n- [検索結果のdoc_titleをそのまま記載](検索結果のsource_urlをそのまま記載)\n\n不明な場合は推測せず、その旨を伝えてください。",
+    "orchestration": "あなたは日本の景品表示法に関する専門アシスタントです。消費者庁ガイドラインPDFに基づき日本語で回答してください。\n\n【参考資料リンクの出力ルール - 最重要】\n検索結果JSONの各レコードには \"source_url\" フィールドと \"doc_title\" フィールドがあります。\n回答末尾の参考資料では、source_urlフィールドの文字列をそのままURLとして使い、doc_titleフィールドの文字列をリンクテキストとして使ってください。\n\n出力テンプレート:\n---\n**参考資料:**\n- [{{doc_title}}]({{source_url}})\n\n実例: 検索結果に \"doc_title\":\"おとり広告に関する表示等の運用基準\", \"source_url\":\"https://www.caa.go.jp/policies/policy/representation/fair_labeling/guideline/pdf/100121premiums_31.pdf\" がある場合:\n- [おとり広告に関する表示等の運用基準](https://www.caa.go.jp/policies/policy/representation/fair_labeling/guideline/pdf/100121premiums_31.pdf)\n\n絶対禁止: URLの推測・生成・短縮・編集・再構成。source_urlの値を一字一句そのまま使うこと。",
+    "response": "日本語で簡潔かつ正確に回答し、ガイドラインの条文や基準を引用してください。\n\n回答末尾に必ず参考資料セクションを付けてください。リンクは [doc_titleの値](source_urlの値) の形式で、source_urlは検索結果のJSONから一字一句コピーしてください。URLを自分で組み立てることは禁止です。",
     "sample_questions": [
       {"question": "おとり広告とは何ですか？どのような場合に該当しますか？", "answer": "おとり広告に関するガイドラインを検索してお答えします。"},
       {"question": "二重価格表示が不当表示となるのはどのような場合ですか？", "answer": "不当な価格表示に関するガイドラインを検索してお答えします。"},
@@ -172,6 +165,8 @@ CREATE OR REPLACE AGENT DEMO.KAIBALAB.LEGAL_GUIDE_AGENT
       "search_service": "DEMO.KAIBALAB.CAA_GUIDELINE_SEARCH",
       "search_columns": ["chunk_text"],
       "metadata_columns": ["doc_title", "source_url", "file_name"],
+      "id_column": "source_url",
+      "title_column": "doc_title",
       "max_results": 5
     }
   }
