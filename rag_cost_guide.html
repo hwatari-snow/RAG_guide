@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG コスト解説 — Cortex Search &amp; Cortex Agent</title>
+    <style>
+        :root {
+            --sf-blue: #29B5E8;
+            --sf-dark: #1B2A4A;
+            --sf-light: #F4F8FB;
+            --sf-accent: #11567F;
+            --sf-green: #36B37E;
+            --sf-orange: #FF8B00;
+            --sf-red: #DE350B;
+            --sf-gray: #6B778C;
+            --sf-border: #DFE1E6;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+            background: var(--sf-light);
+            color: #172B4D;
+            line-height: 1.7;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--sf-dark) 0%, var(--sf-accent) 100%);
+            color: #fff;
+            padding: 48px 0 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 1.05rem;
+            opacity: 0.85;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .overview {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin: -32px 0 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .overview-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 28px 32px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            border-top: 4px solid var(--sf-blue);
+        }
+
+        .overview-card h2 {
+            font-size: 1.15rem;
+            color: var(--sf-accent);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .overview-card .icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .overview-card .icon.search { background: #E3F2FD; }
+        .overview-card .icon.agent { background: #E8F5E9; }
+
+        .overview-card p {
+            color: var(--sf-gray);
+            font-size: 0.95rem;
+        }
+
+        section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 36px 40px;
+            margin-bottom: 28px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+        }
+
+        section h2 {
+            font-size: 1.5rem;
+            color: var(--sf-dark);
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--sf-blue);
+        }
+
+        section h3 {
+            font-size: 1.15rem;
+            color: var(--sf-accent);
+            margin: 24px 0 12px;
+        }
+
+        section h3:first-of-type { margin-top: 8px; }
+
+        .cost-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0 24px;
+            font-size: 0.92rem;
+        }
+
+        .cost-table th {
+            background: var(--sf-dark);
+            color: #fff;
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .cost-table td {
+            padding: 11px 16px;
+            border-bottom: 1px solid var(--sf-border);
+        }
+
+        .cost-table tr:nth-child(even) td { background: #F8FAFC; }
+        .cost-table tr:hover td { background: #EDF5FF; }
+
+        .cost-table .category {
+            font-weight: 600;
+            color: var(--sf-accent);
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .tag.ongoing { background: #FFF0B3; color: #974F0C; }
+        .tag.onetime { background: #DEEBFF; color: #0747A6; }
+        .tag.variable { background: #E3FCEF; color: #006644; }
+
+        .formula-box {
+            background: #F4F5F7;
+            border-left: 4px solid var(--sf-blue);
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 16px 0;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.88rem;
+            line-height: 1.8;
+            overflow-x: auto;
+        }
+
+        .example-box {
+            background: linear-gradient(135deg, #F0F9FF 0%, #E8F4FD 100%);
+            border: 1px solid #B3D9F2;
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin: 20px 0;
+        }
+
+        .example-box h4 {
+            color: var(--sf-accent);
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .example-box .calc {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 6px 12px;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .example-box .calc .label { color: var(--sf-gray); }
+        .example-box .calc .value { font-weight: 600; }
+        .example-box .calc .result {
+            font-size: 1.1rem;
+            color: var(--sf-accent);
+            font-weight: 700;
+        }
+
+        .tip-box {
+            background: #FFFAE6;
+            border: 1px solid #FFE380;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin: 20px 0;
+            font-size: 0.92rem;
+        }
+
+        .tip-box strong { color: #974F0C; }
+
+        .warn-box {
+            background: #FFEBE6;
+            border: 1px solid #FF8F73;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin: 20px 0;
+            font-size: 0.92rem;
+        }
+
+        .warn-box strong { color: #BF2600; }
+
+        .architecture-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 20px 0 28px;
+            font-size: 0.9rem;
+        }
+
+        .flow-step {
+            background: #fff;
+            border: 2px solid var(--sf-blue);
+            border-radius: 10px;
+            padding: 10px 18px;
+            text-align: center;
+            min-width: 130px;
+        }
+
+        .flow-step .step-label {
+            font-size: 0.75rem;
+            color: var(--sf-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .flow-step .step-name {
+            font-weight: 700;
+            color: var(--sf-dark);
+        }
+
+        .flow-arrow {
+            color: var(--sf-blue);
+            font-size: 1.4rem;
+            font-weight: bold;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            margin: 20px 0;
+        }
+
+        .summary-card {
+            background: linear-gradient(135deg, #F0F9FF, #E8F4FD);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .summary-card .amount {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--sf-accent);
+        }
+
+        .summary-card .desc {
+            font-size: 0.82rem;
+            color: var(--sf-gray);
+            margin-top: 4px;
+        }
+
+        .monitor-sql {
+            background: #1E1E1E;
+            color: #D4D4D4;
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin: 16px 0;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 0.82rem;
+            line-height: 1.7;
+            overflow-x: auto;
+        }
+
+        .monitor-sql .keyword { color: #569CD6; }
+        .monitor-sql .func { color: #DCDCAA; }
+        .monitor-sql .string { color: #CE9178; }
+        .monitor-sql .comment { color: #6A9955; }
+
+        .footer {
+            text-align: center;
+            padding: 32px 0 40px;
+            color: var(--sf-gray);
+            font-size: 0.85rem;
+        }
+
+        .footer a { color: var(--sf-blue); text-decoration: none; }
+
+        ul { padding-left: 20px; margin: 8px 0; }
+        li { margin-bottom: 6px; font-size: 0.93rem; }
+
+        @media (max-width: 768px) {
+            .overview { grid-template-columns: 1fr; }
+            .summary-grid { grid-template-columns: 1fr; }
+            section { padding: 24px 20px; }
+            .header h1 { font-size: 1.6rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="container">
+        <h1>RAG パイプライン コスト解説</h1>
+        <p>Snowflake Cortex Search &amp; Cortex Agent の課金体系と最適化ガイド</p>
+    </div>
+</div>
+
+<div class="container">
+
+    <div class="overview">
+        <div class="overview-card">
+            <h2><span class="icon search">🔍</span> Cortex Search</h2>
+            <p>非構造化データの検索サービス。テキストのベクトル埋め込み（Embedding）とインデックス構築・サービング（Serving）が主なコスト。</p>
+        </div>
+        <div class="overview-card">
+            <h2><span class="icon agent">🤖</span> Cortex Agent</h2>
+            <p>LLMベースのオーケストレーション。使用トークン数に応じた従量課金。Cortex Search / Analyst をツールとして呼び出す。</p>
+        </div>
+    </div>
+
+    <!-- Architecture -->
+    <section>
+        <h2>RAG パイプラインのコスト発生ポイント</h2>
+
+        <div class="architecture-flow">
+            <div class="flow-step">
+                <div class="step-label">Step 1</div>
+                <div class="step-name">PDF解析</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step">
+                <div class="step-label">Step 2</div>
+                <div class="step-name">チャンク分割</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step" style="border-color: var(--sf-orange);">
+                <div class="step-label">Step 3 💰</div>
+                <div class="step-name">Cortex Search</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-step" style="border-color: var(--sf-green);">
+                <div class="step-label">Step 4 💰</div>
+                <div class="step-name">Cortex Agent</div>
+            </div>
+        </div>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>ステップ</th>
+                    <th>コスト種別</th>
+                    <th>課金タイミング</th>
+                    <th>備考</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">PDF解析<br>(AI_PARSE_DOCUMENT)</td>
+                    <td>ページ単位のトークン課金</td>
+                    <td><span class="tag onetime">初回 / 更新時</span></td>
+                    <td>Cortex AI Functions のトークンコスト</td>
+                </tr>
+                <tr>
+                    <td class="category">チャンク分割<br>(SPLIT_TEXT_RECURSIVE_CHARACTER)</td>
+                    <td>Warehouse コンピュート</td>
+                    <td><span class="tag onetime">初回 / 更新時</span></td>
+                    <td>通常の SQL 実行コストのみ（低コスト）</td>
+                </tr>
+                <tr>
+                    <td class="category">Cortex Search<br>— Embedding</td>
+                    <td>トークン単位の埋め込み処理</td>
+                    <td><span class="tag onetime">初回 / 増分更新時</span></td>
+                    <td>EMBED_TEXT によるベクトル化</td>
+                </tr>
+                <tr>
+                    <td class="category">Cortex Search<br>— Serving</td>
+                    <td>インデックスサイズ × 時間</td>
+                    <td><span class="tag ongoing">常時（月額）</span></td>
+                    <td>サービスが起動中は常に課金</td>
+                </tr>
+                <tr>
+                    <td class="category">Cortex Search<br>— Warehouse</td>
+                    <td>Warehouse コンピュート</td>
+                    <td><span class="tag variable">リフレッシュ時</span></td>
+                    <td>TARGET_LAG に基づくリフレッシュ</td>
+                </tr>
+                <tr>
+                    <td class="category">Cortex Agent<br>— オーケストレーション</td>
+                    <td>LLM トークン課金</td>
+                    <td><span class="tag variable">クエリごと</span></td>
+                    <td>入力 + 出力トークン数に基づく</td>
+                </tr>
+                <tr>
+                    <td class="category">Cortex Agent<br>— ツール実行</td>
+                    <td>Warehouse + Search クエリ</td>
+                    <td><span class="tag variable">クエリごと</span></td>
+                    <td>Cortex Search 検索 + Warehouse実行</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Cortex Search Detail -->
+    <section>
+        <h2>Cortex Search コスト詳細</h2>
+
+        <h3>1. EMBED_TEXT トークンコンピュート（埋め込み処理）</h3>
+        <p>Cortex Search は、検索カラム内の各テキスト行を自動的にベクトル空間に埋め込みます。行の挿入・更新のたびに埋め込みコストが発生しますが、<strong>増分処理</strong>されるため、変更分のみが課金対象です。</p>
+
+        <div class="formula-box">
+            コスト = (Embedding モデルのクレジットレート / 1M トークン) × 行数 × 行あたりトークン数
+        </div>
+
+        <div class="example-box">
+            <h4>計算例: 公式ドキュメントの大規模ケース</h4>
+            <div class="calc">
+                <span class="label">モデルレート:</span>
+                <span>0.05 credits / 1M tokens</span>
+                <span></span>
+                <span class="label">行数:</span>
+                <span>10,000,000 行 × 500 tokens/行</span>
+                <span></span>
+                <span class="label">合計:</span>
+                <span>= 5,000,000,000 tokens ÷ 1,000,000</span>
+                <span class="result">= 250 credits</span>
+            </div>
+        </div>
+
+        <div class="example-box">
+            <h4>計算例: 本デモ（景品表示法ガイドライン 33 PDF）</h4>
+            <div class="calc">
+                <span class="label">チャンク数:</span>
+                <span>約 1,000 チャンク</span>
+                <span></span>
+                <span class="label">チャンクサイズ:</span>
+                <span>1,500 文字 ≈ 375〜500 tokens（日本語）</span>
+                <span></span>
+                <span class="label">合計トークン:</span>
+                <span>≈ 500,000 tokens</span>
+                <span></span>
+                <span class="label">Embeddingコスト:</span>
+                <span>0.05 × 0.5</span>
+                <span class="result">≈ 0.025 credits</span>
+            </div>
+        </div>
+
+        <div class="tip-box">
+            <strong>ポイント:</strong> 小規模データ（1,000チャンク程度）では、Embeddingコストはほぼ無視できるレベルです。
+        </div>
+
+        <h3>2. Serving コンピュート（サービング＝常時課金）</h3>
+        <p>Cortex Search のサービングは、インデックスされたデータの <strong>GB/月</strong> 単位で課金されます。サービスが起動中（resumed）である限り、クエリの有無に関わらず課金されます。</p>
+
+        <div class="formula-box">
+            月額コスト = (クレジットレート / GB) × 行数 × (ベクトル次元 × 4 bytes + 行データサイズ) ÷ 1,000,000,000
+        </div>
+
+        <div class="example-box">
+            <h4>計算例: 公式ドキュメントの大規模ケース</h4>
+            <div class="calc">
+                <span class="label">パラメータ:</span>
+                <span>10M行、768次元、1,000 bytes/行、6.3 credits/GB</span>
+                <span></span>
+                <span class="label">計算:</span>
+                <span>6.3 × 10M × (768 × 4 + 1,000) / 1B</span>
+                <span class="result">= 256.5 credits/月</span>
+            </div>
+        </div>
+
+        <div class="example-box">
+            <h4>計算例: 本デモ（~1,000 チャンク）</h4>
+            <div class="calc">
+                <span class="label">パラメータ:</span>
+                <span>1,000行、768次元、~2,000 bytes/行、6.3 credits/GB</span>
+                <span></span>
+                <span class="label">インデックスサイズ:</span>
+                <span>1,000 × (768 × 4 + 2,000) = 5,072,000 bytes ≈ 0.005 GB</span>
+                <span></span>
+                <span class="label">月額:</span>
+                <span>6.3 × 0.005</span>
+                <span class="result">≈ 0.03 credits/月</span>
+            </div>
+        </div>
+
+        <div class="tip-box">
+            <strong>ポイント:</strong> 本デモ規模では Serving コストも極めて小さいです。ただしサービスが常時起動している限り課金されるため、開発中は <code>ALTER CORTEX SEARCH SERVICE ... SUSPEND</code> で停止しましょう。
+        </div>
+
+        <h3>3. Warehouse コンピュート（リフレッシュ）</h3>
+        <p>Cortex Search のインデックスリフレッシュに Virtual Warehouse が使用されます。TARGET_LAG の設定に応じてリフレッシュ頻度が変わります。</p>
+        <ul>
+            <li><strong>MEDIUM</strong> ウェアハウスで十分（大半のケースでLARGE以上は不要）</li>
+            <li>データ変更がなければ Warehouse クレジットは消費されない</li>
+            <li>TARGET_LAG を適切に設定してリフレッシュ頻度を最適化</li>
+        </ul>
+
+        <h3>4. ストレージ</h3>
+        <p>ソースクエリのマテリアライズ結果と検索インデックスの保存に使用。TB単位の定額制。小規模データでは無視できるレベル。</p>
+
+        <h3>Cortex Search コストまとめ</h3>
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>コスト項目</th>
+                    <th>課金モデル</th>
+                    <th>本デモでの概算</th>
+                    <th>大規模時の概算 (10M行)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">Embedding</td>
+                    <td>トークン数 × モデルレート</td>
+                    <td>~0.025 credits（初回のみ）</td>
+                    <td>~250 credits（初回）</td>
+                </tr>
+                <tr>
+                    <td class="category">Serving</td>
+                    <td>GB/月 × レート</td>
+                    <td>~0.03 credits/月</td>
+                    <td>~256.5 credits/月</td>
+                </tr>
+                <tr>
+                    <td class="category">Warehouse</td>
+                    <td>WH サイズ × 稼働時間</td>
+                    <td>通常の WH コスト</td>
+                    <td>通常の WH コスト</td>
+                </tr>
+                <tr>
+                    <td class="category">Storage</td>
+                    <td>TB/月 × 定額</td>
+                    <td>極小</td>
+                    <td>データ量に依存</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Cortex Agent Detail -->
+    <section>
+        <h2>Cortex Agent コスト詳細</h2>
+
+        <h3>課金モデル</h3>
+        <p>Cortex Agent は<strong>使用トークン数に基づく従量課金</strong>です。以下の要素で構成されます：</p>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>コスト要素</th>
+                    <th>説明</th>
+                    <th>課金基準</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">オーケストレーション</td>
+                    <td>Agent の計画立案・タスク分割・ツール選択・リフレクションに使用される LLM 推論</td>
+                    <td>入力 + 出力トークン数</td>
+                </tr>
+                <tr>
+                    <td class="category">Cortex Search 呼び出し</td>
+                    <td>非構造化データの検索ツール実行。検索クエリのEmbedding + 結果取得</td>
+                    <td>Search サービングコスト + クエリEmbedding</td>
+                </tr>
+                <tr>
+                    <td class="category">Cortex Analyst 呼び出し<br>（使用時のみ）</td>
+                    <td>構造化データのSQL生成。セマンティックモデルに基づく text-to-SQL</td>
+                    <td>トークン数</td>
+                </tr>
+                <tr>
+                    <td class="category">Warehouse 実行</td>
+                    <td>Agent のツール実行環境として Warehouse を使用</td>
+                    <td>WH サイズ × 稼働時間</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Agent のトークン構成</h3>
+        <p>1回の Agent リクエストで消費されるトークンの内訳：</p>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>トークン種別</th>
+                    <th>内容</th>
+                    <th>概算規模</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">入力トークン</td>
+                    <td>システム指示 + Agent設定 + ユーザー質問 + 検索結果コンテキスト + スレッド履歴</td>
+                    <td>数千〜数万 tokens</td>
+                </tr>
+                <tr>
+                    <td class="category">キャッシュ読取トークン</td>
+                    <td>同一スレッドの前回コンテキストのキャッシュ利用分（低コスト）</td>
+                    <td>可変</td>
+                </tr>
+                <tr>
+                    <td class="category">出力トークン</td>
+                    <td>Agent の回答テキスト + 参考資料リンク</td>
+                    <td>数百〜数千 tokens</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>利用可能モデルとコスト</h3>
+        <p>Agent に使用するモデルによりトークンあたりのクレジットレートが異なります。具体的なレートは <a href="https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf" target="_blank">Snowflake Service Consumption Table</a> を参照してください。</p>
+
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>モデル</th>
+                    <th>特徴</th>
+                    <th>コスト傾向</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">auto（推奨）</td>
+                    <td>Snowflake が自動選択。最高品質のモデルが適用され、新モデル追加時に自動アップグレード</td>
+                    <td>中〜高</td>
+                </tr>
+                <tr>
+                    <td class="category">claude-sonnet-4-5</td>
+                    <td>高精度・高品質な推論。複雑なタスクに最適</td>
+                    <td>高</td>
+                </tr>
+                <tr>
+                    <td class="category">claude-haiku-4-5</td>
+                    <td>高速・低コスト。シンプルなタスクに最適</td>
+                    <td>低</td>
+                </tr>
+                <tr>
+                    <td class="category">openai-gpt-4-1</td>
+                    <td>OpenAI の最新モデル。高精度</td>
+                    <td>高</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="tip-box">
+            <strong>コスト最適化のヒント:</strong> 回答品質とコストのバランスを考慮し、まずは <code>auto</code> で始めて、CORTEX_AGENT_USAGE_HISTORY ビューでトークン消費を分析した上で、必要に応じてモデルを固定しましょう。
+        </div>
+    </section>
+
+    <!-- Your Case -->
+    <section>
+        <h2>本デモの概算コスト（景品表示法 33 PDF）</h2>
+
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="amount">~0.03</div>
+                <div class="desc">credits/月<br>Cortex Search Serving</div>
+            </div>
+            <div class="summary-card">
+                <div class="amount">~0.025</div>
+                <div class="desc">credits（初回のみ）<br>Embedding 処理</div>
+            </div>
+            <div class="summary-card">
+                <div class="amount">従量制</div>
+                <div class="desc">Agent トークン課金<br>クエリごとに数 credits</div>
+            </div>
+        </div>
+
+        <h3>前提条件</h3>
+        <ul>
+            <li>PDF数: 33ファイル（景品表示法ガイドライン）</li>
+            <li>チャンク数: 約 1,000 チャンク（1,500文字/チャンク、オーバーラップ300文字）</li>
+            <li>Embedding モデル: 768次元（Cortex Search がデフォルト選択）</li>
+            <li>日本語テキスト: 1文字 ≈ 1〜2 tokens（英語より多い傾向）</li>
+            <li>Target Lag: 1時間</li>
+        </ul>
+
+        <h3>コスト内訳</h3>
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>コスト項目</th>
+                    <th>発生タイミング</th>
+                    <th>概算</th>
+                    <th>備考</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">AI_PARSE_DOCUMENT</td>
+                    <td><span class="tag onetime">初回</span></td>
+                    <td>数 credits</td>
+                    <td>33 PDF × 数十ページ</td>
+                </tr>
+                <tr>
+                    <td class="category">Search Embedding</td>
+                    <td><span class="tag onetime">初回 + 増分</span></td>
+                    <td>~0.025 credits</td>
+                    <td>~500K tokens × 0.05/1M</td>
+                </tr>
+                <tr>
+                    <td class="category">Search Serving</td>
+                    <td><span class="tag ongoing">毎月</span></td>
+                    <td>~0.03 credits/月</td>
+                    <td>インデックス ~5MB</td>
+                </tr>
+                <tr>
+                    <td class="category">Search Warehouse</td>
+                    <td><span class="tag variable">リフレッシュ時</span></td>
+                    <td>WH サイズ依存</td>
+                    <td>MEDIUM WH 推奨</td>
+                </tr>
+                <tr>
+                    <td class="category">Agent（1クエリ）</td>
+                    <td><span class="tag variable">クエリごと</span></td>
+                    <td>モデル依存</td>
+                    <td>入力+出力トークン × モデルレート</td>
+                </tr>
+                <tr>
+                    <td class="category">Agent Warehouse</td>
+                    <td><span class="tag variable">クエリごと</span></td>
+                    <td>WH 稼働時間依存</td>
+                    <td>query_timeout: 299秒</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="warn-box">
+            <strong>注意:</strong> Agent のコストはクエリの複雑さ・会話の長さ・使用モデルにより大きく変動します。1回の質問で複数のサブタスクに分割される場合、各サブタスクでトークンが消費されます。長い会話スレッドではコンテキストが蓄積され、入力トークン数が増加します。
+        </div>
+    </section>
+
+    <!-- Cost Optimization -->
+    <section>
+        <h2>コスト最適化のベストプラクティス</h2>
+
+        <h3>Cortex Search の最適化</h3>
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>施策</th>
+                    <th>効果</th>
+                    <th>実装方法</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">不要時のサスペンド</td>
+                    <td>Serving コスト削減</td>
+                    <td><code>ALTER CORTEX SEARCH SERVICE ... SUSPEND</code></td>
+                </tr>
+                <tr>
+                    <td class="category">Target Lag の調整</td>
+                    <td>リフレッシュ頻度低減 → WH コスト削減</td>
+                    <td>ビジネス要件に合わせた lag 設定</td>
+                </tr>
+                <tr>
+                    <td class="category">Primary Key 定義</td>
+                    <td>増分リフレッシュの最適化</td>
+                    <td>Search Service 作成時に PK を指定</td>
+                </tr>
+                <tr>
+                    <td class="category">変更のバッチ化</td>
+                    <td>固定コスト削減（更新回数を減らす）</td>
+                    <td>MERGE INTO で一括更新</td>
+                </tr>
+                <tr>
+                    <td class="category">WH サイズの最適化</td>
+                    <td>不要な大型 WH の回避</td>
+                    <td>MEDIUM で十分な場合が多い</td>
+                </tr>
+                <tr>
+                    <td class="category">CREATE OR REPLACE の回避</td>
+                    <td>フルリフレッシュ防止</td>
+                    <td>MERGE INTO で増分更新</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Cortex Agent の最適化</h3>
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th>施策</th>
+                    <th>効果</th>
+                    <th>実装方法</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="category">モデル選択</td>
+                    <td>タスク複雑度に応じたコスト最適化</td>
+                    <td>シンプルなQAは claude-haiku-4-5 など軽量モデル</td>
+                </tr>
+                <tr>
+                    <td class="category">指示の簡潔化</td>
+                    <td>入力トークン削減</td>
+                    <td>Agent Instructions を必要最小限に</td>
+                </tr>
+                <tr>
+                    <td class="category">max_results の調整</td>
+                    <td>Search 結果のコンテキスト量を制御</td>
+                    <td>tool_resources の max_results を適切に設定</td>
+                </tr>
+                <tr>
+                    <td class="category">リソースバジェット</td>
+                    <td>月次コストの上限管理</td>
+                    <td>タグ + Budget で自動アクセス制御</td>
+                </tr>
+                <tr>
+                    <td class="category">query_timeout の設定</td>
+                    <td>暴走クエリの防止</td>
+                    <td>tool_resources.execution_environment.query_timeout</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Monitoring -->
+    <section>
+        <h2>コスト監視クエリ</h2>
+
+        <h3>Cortex Search の利用状況</h3>
+        <div class="monitor-sql">
+            <span class="comment">-- Cortex Search の日次利用履歴</span><br>
+            <span class="keyword">SELECT</span> *<br>
+            <span class="keyword">FROM</span> <span class="func">SNOWFLAKE.ACCOUNT_USAGE.CORTEX_SEARCH_DAILY_USAGE_HISTORY</span><br>
+            <span class="keyword">WHERE</span> START_TIME >= <span class="func">DATEADD</span>(<span class="string">'day'</span>, -30, <span class="func">CURRENT_TIMESTAMP</span>())<br>
+            <span class="keyword">ORDER BY</span> START_TIME <span class="keyword">DESC</span>;
+        </div>
+
+        <div class="monitor-sql">
+            <span class="comment">-- Cortex Search の時間別サービングクレジット</span><br>
+            <span class="keyword">SELECT</span> *<br>
+            <span class="keyword">FROM</span> <span class="func">SNOWFLAKE.ACCOUNT_USAGE.CORTEX_SEARCH_SERVING_USAGE_HISTORY</span><br>
+            <span class="keyword">WHERE</span> START_TIME >= <span class="func">DATEADD</span>(<span class="string">'day'</span>, -7, <span class="func">CURRENT_TIMESTAMP</span>())<br>
+            <span class="keyword">ORDER BY</span> START_TIME <span class="keyword">DESC</span>;
+        </div>
+
+        <h3>Cortex Agent の利用状況</h3>
+        <div class="monitor-sql">
+            <span class="comment">-- Cortex Agent のリクエスト別利用履歴</span><br>
+            <span class="keyword">SELECT</span><br>
+            &nbsp;&nbsp;START_TIME, USER_NAME, AGENT_NAME,<br>
+            &nbsp;&nbsp;TOKEN_CREDITS, TOKENS,<br>
+            &nbsp;&nbsp;TOKENS_GRANULAR, CREDITS_GRANULAR<br>
+            <span class="keyword">FROM</span> <span class="func">SNOWFLAKE.ACCOUNT_USAGE.CORTEX_AGENT_USAGE_HISTORY</span><br>
+            <span class="keyword">WHERE</span> START_TIME >= <span class="func">DATEADD</span>(<span class="string">'day'</span>, -30, <span class="func">CURRENT_TIMESTAMP</span>())<br>
+            <span class="keyword">ORDER BY</span> START_TIME <span class="keyword">DESC</span>;
+        </div>
+
+        <div class="monitor-sql">
+            <span class="comment">-- Agent の日次トークン消費サマリー</span><br>
+            <span class="keyword">SELECT</span><br>
+            &nbsp;&nbsp;<span class="func">DATE_TRUNC</span>(<span class="string">'day'</span>, START_TIME) <span class="keyword">AS</span> usage_date,<br>
+            &nbsp;&nbsp;AGENT_NAME,<br>
+            &nbsp;&nbsp;<span class="func">SUM</span>(TOKEN_CREDITS) <span class="keyword">AS</span> total_credits,<br>
+            &nbsp;&nbsp;<span class="func">SUM</span>(TOKENS) <span class="keyword">AS</span> total_tokens,<br>
+            &nbsp;&nbsp;<span class="func">COUNT</span>(*) <span class="keyword">AS</span> request_count<br>
+            <span class="keyword">FROM</span> <span class="func">SNOWFLAKE.ACCOUNT_USAGE.CORTEX_AGENT_USAGE_HISTORY</span><br>
+            <span class="keyword">WHERE</span> START_TIME >= <span class="func">DATEADD</span>(<span class="string">'day'</span>, -30, <span class="func">CURRENT_TIMESTAMP</span>())<br>
+            <span class="keyword">GROUP BY</span> 1, 2<br>
+            <span class="keyword">ORDER BY</span> usage_date <span class="keyword">DESC</span>;
+        </div>
+
+        <h3>Cortex AI Functions（AI_PARSE_DOCUMENT 等）の利用状況</h3>
+        <div class="monitor-sql">
+            <span class="comment">-- AI Functions の日次クレジット消費</span><br>
+            <span class="keyword">SELECT</span><br>
+            &nbsp;&nbsp;<span class="func">DATE_TRUNC</span>(<span class="string">'day'</span>, START_TIME) <span class="keyword">AS</span> usage_date,<br>
+            &nbsp;&nbsp;FUNCTION_NAME, MODEL_NAME,<br>
+            &nbsp;&nbsp;<span class="func">SUM</span>(CREDITS) <span class="keyword">AS</span> total_credits,<br>
+            &nbsp;&nbsp;<span class="func">COUNT</span>(<span class="keyword">DISTINCT</span> QUERY_ID) <span class="keyword">AS</span> query_count<br>
+            <span class="keyword">FROM</span> <span class="func">SNOWFLAKE.ACCOUNT_USAGE.CORTEX_AI_FUNCTIONS_USAGE_HISTORY</span><br>
+            <span class="keyword">WHERE</span> START_TIME >= <span class="func">DATEADD</span>(<span class="string">'day'</span>, -30, <span class="func">CURRENT_TIMESTAMP</span>())<br>
+            <span class="keyword">GROUP BY</span> 1, 2, 3<br>
+            <span class="keyword">ORDER BY</span> usage_date <span class="keyword">DESC</span>;
+        </div>
+    </section>
+
+    <!-- Resource Budget -->
+    <section>
+        <h2>コスト管理機能</h2>
+
+        <h3>リソースバジェット（Cortex Agent 向け）</h3>
+        <p>Cortex Agent にはタグベースの<strong>リソースバジェット</strong>機能があり、月次の利用上限を設定できます。閾値に達した際にストアドプロシージャを自動実行してアクセスを制限できます。</p>
+
+        <div class="monitor-sql">
+            <span class="comment">-- 1. タグを作成してAgentに適用</span><br>
+            <span class="keyword">CREATE TAG</span> cost_mgmt.tags.cost_center<br>
+            &nbsp;&nbsp;<span class="keyword">ALLOWED_VALUES</span> <span class="string">'rag-demo'</span>;<br><br>
+            <span class="keyword">ALTER AGENT</span> DEMO.KAIBALAB.LEGAL_GUIDE_AGENT<br>
+            &nbsp;&nbsp;<span class="keyword">SET TAG</span> cost_mgmt.tags.cost_center = <span class="string">'rag-demo'</span>;<br><br>
+            <span class="comment">-- 2. Budgetを作成（Snowsight UIまたはSQL）</span><br>
+            <span class="comment">-- 月間上限を設定し、80%到達時に通知、100%到達時にアクセス停止</span>
+        </div>
+
+        <h3>CORTEX_AGENT_USAGE_HISTORY ビュー</h3>
+        <p>各 Agent リクエストのトークン・クレジット消費を詳細に確認できるビューです。<code>TOKENS_GRANULAR</code> カラムでサービスタイプ（cortex_agents / cortex_analyst）やモデル別の内訳が取得可能です。</p>
+
+        <div class="tip-box">
+            <strong>ポイント:</strong> Account Usage ビューのデータ反映には最大60分の遅延があります。リアルタイム監視が必要な場合は <code>INFORMATION_SCHEMA</code> 系のビューと組み合わせましょう。
+        </div>
+    </section>
+
+    <!-- References -->
+    <section>
+        <h2>参考リンク</h2>
+        <ul>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-costs" target="_blank">Understanding cost for Cortex Search Services — Snowflake Documentation</a></li>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents" target="_blank">Cortex Agents — Snowflake Documentation</a></li>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-resource-budgets" target="_blank">Resource budgets for Cortex Agents — Snowflake Documentation</a></li>
+            <li><a href="https://docs.snowflake.com/en/sql-reference/account-usage/cortex_agent_usage_history" target="_blank">CORTEX_AGENT_USAGE_HISTORY view — Snowflake Documentation</a></li>
+            <li><a href="https://docs.snowflake.com/en/sql-reference/account-usage/cortex_search_daily_usage_history" target="_blank">CORTEX_SEARCH_DAILY_USAGE_HISTORY view — Snowflake Documentation</a></li>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/ai-func-cost-management" target="_blank">Managing Cortex AI Function costs — Snowflake Documentation</a></li>
+            <li><a href="https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf" target="_blank">Snowflake Service Consumption Table (PDF)</a></li>
+            <li><a href="https://docs.snowflake.com/en/user-guide/snowflake-cortex/vector-embeddings" target="_blank">Vector Embeddings — Snowflake Documentation</a></li>
+        </ul>
+    </section>
+
+</div>
+
+<div class="footer">
+    <p>作成日: 2026年4月 | Snowflake Cortex RAG デモ — DEMO.KAIBALAB</p>
+    <p>最新の料金は <a href="https://www.snowflake.com/legal-files/CreditConsumptionTable.pdf" target="_blank">Snowflake Service Consumption Table</a> をご確認ください。</p>
+</div>
+
+</body>
+</html>
