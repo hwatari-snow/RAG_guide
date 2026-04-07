@@ -1,25 +1,37 @@
 USE ROLE accountadmin;
 USE SCHEMA DEMO.KAIBALAB;
 USE WAREHOUSE COMPUTE_WH;
-
 -- クロスリージョンコールを有効化
 ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';
+
+-- Step 0: ステージの AUTO_REFRESH を有効化（内部ステージ）
+-- =============================================================
+ALTER STAGE DEMO.KAIBALAB.RAG_PDF SET DIRECTORY = (ENABLE = TRUE AUTO_REFRESH = TRUE);
+ALTER STAGE DEMO.KAIBALAB.RAG_PDF REFRESH;
 
 -- =============================================================
 -- Step 1: AI_PARSE_DOCUMENT で PDF をパースしてテーブルに格納
 -- =============================================================
 
-CREATE OR REPLACE TABLE DEMO.KAIBALAB.RAG_PDF_PARSED AS
+CREATE TABLE IF NOT EXISTS DEMO.KAIBALAB.RAG_PDF_PARSED (
+    file_name VARCHAR,
+    parsed_result VARIANT,
+    content STRING,
+    page_count INT
+);
+
+INSERT INTO DEMO.KAIBALAB.RAG_PDF_PARSED (file_name, parsed_result, content, page_count)
 SELECT
     relative_path AS file_name,
     AI_PARSE_DOCUMENT(
         TO_FILE('@DEMO.KAIBALAB.RAG_PDF', relative_path),
-        {'mode': 'OCR'} --LAYOUTではなくOCRへ
+        {'mode': 'OCR'}
     ) AS parsed_result,
     parsed_result:content::STRING AS content,
     parsed_result:metadata:pageCount::INT AS page_count
 FROM DIRECTORY(@DEMO.KAIBALAB.RAG_PDF)
-WHERE relative_path ILIKE '%.pdf';
+WHERE relative_path ILIKE '%.pdf'
+  AND relative_path NOT IN (SELECT file_name FROM DEMO.KAIBALAB.RAG_PDF_PARSED);
 
 -- =============================================================
 -- Step 2: ファイル名→URL マッピングテーブルを作成
@@ -70,7 +82,17 @@ INSERT INTO DEMO.KAIBALAB.RAG_PDF_URL_MAP VALUES
 -- Step 3: チャンク分割テーブルを作成（URL付き）
 -- =============================================================
 
-CREATE OR REPLACE TABLE DEMO.KAIBALAB.RAG_PDF_CHUNKS AS
+CREATE TABLE IF NOT EXISTS DEMO.KAIBALAB.RAG_PDF_CHUNKS (
+    chunk_id VARCHAR,
+    file_name VARCHAR,
+    doc_title VARCHAR,
+    source_url VARCHAR,
+    chunk_index INT,
+    page_count INT,
+    chunk_text VARCHAR
+);
+
+INSERT INTO DEMO.KAIBALAB.RAG_PDF_CHUNKS (chunk_id, file_name, doc_title, source_url, chunk_index, page_count, chunk_text)
 WITH chunked AS (
     SELECT
         p.file_name,
@@ -87,6 +109,7 @@ WITH chunked AS (
             )
         ) c
     WHERE p.content IS NOT NULL
+      AND p.file_name NOT IN (SELECT DISTINCT file_name FROM DEMO.KAIBALAB.RAG_PDF_CHUNKS)
 )
 SELECT
     ch.file_name || '_chunk_' || LPAD(ch.chunk_index::STRING, 4, '0') AS chunk_id,
@@ -123,7 +146,71 @@ AS (
 );
 
 -- =============================================================
--- Step 5: Cortex Agent (LEGAL_GUIDE_AGENT) を作成
+-- Step 5: ステージの DIRECTORY テーブルに Stream を作成
+-- =============================================================
+
+CREATE OR REPLACE STREAM DEMO.KAIBALAB.RAG_PDF_STREAM
+  ON STAGE DEMO.KAIBALAB.RAG_PDF;
+
+-- =============================================================
+-- Step 6: Triggered Task（新規PDF検知 → パース → チャンク追加）
+-- =============================================================
+
+CREATE OR REPLACE TASK DEMO.KAIBALAB.RAG_PDF_AUTO_INGEST
+  WAREHOUSE = COMPUTE_WH
+  SCHEDULE = 'USING CRON */30 * * * * Asia/Tokyo'
+  WHEN SYSTEM$STREAM_HAS_DATA('DEMO.KAIBALAB.RAG_PDF_STREAM')
+AS
+BEGIN
+    INSERT INTO DEMO.KAIBALAB.RAG_PDF_PARSED (file_name, parsed_result, content, page_count)
+    SELECT
+        relative_path AS file_name,
+        AI_PARSE_DOCUMENT(
+            TO_FILE('@DEMO.KAIBALAB.RAG_PDF', relative_path),
+            {'mode': 'OCR'}
+        ) AS parsed_result,
+        parsed_result:content::STRING AS content,
+        parsed_result:metadata:pageCount::INT AS page_count
+    FROM DEMO.KAIBALAB.RAG_PDF_STREAM
+    WHERE relative_path ILIKE '%.pdf'
+      AND METADATA$ACTION = 'INSERT';
+
+    INSERT INTO DEMO.KAIBALAB.RAG_PDF_CHUNKS (chunk_id, file_name, doc_title, source_url, chunk_index, page_count, chunk_text)
+    WITH chunked AS (
+        SELECT
+            p.file_name,
+            p.page_count,
+            c.index AS chunk_index,
+            c.value::STRING AS chunk_text
+        FROM DEMO.KAIBALAB.RAG_PDF_PARSED p,
+            LATERAL FLATTEN(
+                SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER(
+                    p.content,
+                    'markdown',
+                    1500,
+                    300
+                )
+            ) c
+        WHERE p.content IS NOT NULL
+          AND p.file_name NOT IN (SELECT DISTINCT file_name FROM DEMO.KAIBALAB.RAG_PDF_CHUNKS)
+    )
+    SELECT
+        ch.file_name || '_chunk_' || LPAD(ch.chunk_index::STRING, 4, '0'),
+        ch.file_name,
+        COALESCE(m.doc_title, ch.file_name),
+        COALESCE(m.source_url, ''),
+        ch.chunk_index,
+        ch.page_count,
+        ch.chunk_text
+    FROM chunked ch
+    LEFT JOIN DEMO.KAIBALAB.RAG_PDF_URL_MAP m ON ch.file_name = m.file_name;
+END;
+
+ALTER TASK DEMO.KAIBALAB.RAG_PDF_AUTO_INGEST RESUME;
+
+
+-- =============================================================
+-- Step 7: Cortex Agent (LEGAL_GUIDE_AGENT) を作成
 -- =============================================================
 
 CREATE OR REPLACE AGENT DEMO.KAIBALAB.LEGAL_GUIDE_AGENT
