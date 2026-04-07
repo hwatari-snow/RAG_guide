@@ -1,18 +1,29 @@
+-- =============================================================
+-- 景品表示法 RAG パイプライン構築スクリプト
+--
+-- ステージ上のPDFを AI_PARSE_DOCUMENT でパースし、
+-- チャンク分割後 Cortex Search Service で検索可能にする。
+-- 新規PDFが追加されたら Stream + Task で自動取り込みする。
+-- =============================================================
+
 USE ROLE accountadmin;
 USE SCHEMA DEMO.KAIBALAB;
 USE WAREHOUSE COMPUTE_WH;
--- クロスリージョンコールを有効化
+
+-- Cortex AI のクロスリージョン推論を有効化（他リージョンのモデルも利用可能にする）
 ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';
 
+-- =============================================================
 -- Step 0: ステージの DIRECTORY を有効化してメタデータをリフレッシュ
--- 注意: AUTO_REFRESH=TRUE は AWS 上のアカウント限定プレビュー機能。
---       GCP/Azure の場合は AUTO_REFRESH=TRUE を削除し、Task 内の ALTER STAGE REFRESH で対応。
+--   AUTO_REFRESH=TRUE: ファイル追加時に自動でメタデータ更新（AWS限定プレビュー）
+--   GCP/Azure の場合は AUTO_REFRESH=TRUE を削除し、Task 内の ALTER STAGE REFRESH で対応
 -- =============================================================
 ALTER STAGE DEMO.KAIBALAB.RAG_PDF SET DIRECTORY = (ENABLE = TRUE AUTO_REFRESH = TRUE);
 ALTER STAGE DEMO.KAIBALAB.RAG_PDF REFRESH;
 
 -- =============================================================
--- Step 1: AI_PARSE_DOCUMENT で PDF をパースしてテーブルに格納
+-- Step 1: AI_PARSE_DOCUMENT (OCRモード) で PDF をパースしてテーブルに格納
+--   増分処理: 既にパース済みのファイルはスキップする
 -- =============================================================
 
 CREATE TABLE IF NOT EXISTS DEMO.KAIBALAB.RAG_PDF_PARSED (
@@ -36,7 +47,8 @@ WHERE relative_path ILIKE '%.pdf'
   AND relative_path NOT IN (SELECT file_name FROM DEMO.KAIBALAB.RAG_PDF_PARSED);
 
 -- =============================================================
--- Step 2: ファイル名→URL マッピングテーブルを作成
+-- Step 2: ファイル名 → 消費者庁URL・ガイドライン名のマッピングテーブル
+--   Cortex Search の検索結果に参照元URLとタイトルを付与するために使用
 -- =============================================================
 
 CREATE OR REPLACE TABLE DEMO.KAIBALAB.RAG_PDF_URL_MAP AS
@@ -77,7 +89,9 @@ FROM VALUES
 ('160225premiums_1.pdf', 'https://www.caa.go.jp/policies/policy/representation/fair_labeling/guideline/pdf/160225premiums_1.pdf', '景品表示法における違反事例集');
 
 -- =============================================================
--- Step 3: チャンク分割テーブルを作成（URL付き）
+-- Step 3: パース済みテキストを1500トークン/300オーバーラップでチャンク分割
+--   URL マッピングを JOIN して各チャンクに参照元情報を付与
+--   増分処理: 既にチャンク済みのファイルはスキップする
 -- =============================================================
 
 CREATE TABLE IF NOT EXISTS DEMO.KAIBALAB.RAG_PDF_CHUNKS (
@@ -123,6 +137,7 @@ ORDER BY ch.file_name, ch.chunk_index;
 
 -- =============================================================
 -- Step 4: Cortex Search Service を作成
+--   chunk_text を検索対象とし、TARGET_LAG=1h でソーステーブルの変更を自動反映
 -- =============================================================
 
 CREATE OR REPLACE CORTEX SEARCH SERVICE DEMO.KAIBALAB.CAA_GUIDELINE_SEARCH
@@ -145,13 +160,16 @@ AS (
 
 -- =============================================================
 -- Step 5: ステージの DIRECTORY テーブルに Stream を作成
+--   新規ファイルの追加を検知するための変更追跡
 -- =============================================================
 
 CREATE OR REPLACE STREAM DEMO.KAIBALAB.RAG_PDF_STREAM
   ON STAGE DEMO.KAIBALAB.RAG_PDF;
 
 -- =============================================================
--- Step 6: Triggered Task（新規PDF検知 → パース → チャンク追加）
+-- Step 6: Serverless Task（30分ごとにStreamを確認）
+--   新規PDFを検知したら: ステージリフレッシュ → パース → チャンク分割
+--   Cortex Search は TARGET_LAG で自動的に再インデックスされる
 -- =============================================================
 
 CREATE OR REPLACE TASK DEMO.KAIBALAB.RAG_PDF_AUTO_INGEST
@@ -213,7 +231,8 @@ ALTER TASK DEMO.KAIBALAB.RAG_PDF_AUTO_INGEST RESUME;
 
 
 -- =============================================================
--- Step 7: Cortex Agent (LEGAL_GUIDE_AGENT) を作成
+-- Step 7: Cortex Agent を作成
+--   景品表示法の専門アシスタント。Cortex Search で関連ガイドラインを検索し回答する
 -- =============================================================
 
 CREATE OR REPLACE AGENT DEMO.KAIBALAB.LEGAL_GUIDE_AGENT
