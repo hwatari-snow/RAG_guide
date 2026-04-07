@@ -11,7 +11,7 @@ SELECT
     relative_path AS file_name,
     AI_PARSE_DOCUMENT(
         TO_FILE('@DEMO.KAIBALAB.RAG_PDF', relative_path),
-        {'mode': 'LAYOUT'}
+        {'mode': 'OCR'} --LAYOUTではなくOCRへ
     ) AS parsed_result,
     parsed_result:content::STRING AS content,
     parsed_result:metadata:pageCount::INT AS page_count
