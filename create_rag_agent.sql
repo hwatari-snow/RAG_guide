@@ -4,7 +4,9 @@ USE WAREHOUSE COMPUTE_WH;
 -- クロスリージョンコールを有効化
 ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';
 
--- Step 0: ステージの AUTO_REFRESH を有効化（内部ステージ）
+-- Step 0: ステージの DIRECTORY を有効化してメタデータをリフレッシュ
+-- 注意: AUTO_REFRESH=TRUE は AWS 上のアカウント限定プレビュー機能。
+--       GCP/Azure の場合は AUTO_REFRESH=TRUE を削除し、Task 内の ALTER STAGE REFRESH で対応。
 -- =============================================================
 ALTER STAGE DEMO.KAIBALAB.RAG_PDF SET DIRECTORY = (ENABLE = TRUE AUTO_REFRESH = TRUE);
 ALTER STAGE DEMO.KAIBALAB.RAG_PDF REFRESH;
@@ -37,13 +39,9 @@ WHERE relative_path ILIKE '%.pdf'
 -- Step 2: ファイル名→URL マッピングテーブルを作成
 -- =============================================================
 
-CREATE OR REPLACE TABLE DEMO.KAIBALAB.RAG_PDF_URL_MAP (
-    file_name VARCHAR,
-    source_url VARCHAR,
-    doc_title VARCHAR
-);
-
-INSERT INTO DEMO.KAIBALAB.RAG_PDF_URL_MAP VALUES
+CREATE OR REPLACE TABLE DEMO.KAIBALAB.RAG_PDF_URL_MAP AS
+SELECT column1 AS file_name, column2 AS source_url, column3 AS doc_title
+FROM VALUES
 ('representation_cms216_240418_02.pdf', 'https://www.caa.go.jp/policies/policy/representation/fair_labeling/guideline/assets/representation_cms216_240418_02.pdf', '景品類等の指定の告示の運用基準'),
 ('100121premiums_21.pdf', 'https://www.caa.go.jp/policies/policy/representation/fair_labeling/guideline/pdf/100121premiums_21.pdf', '景品類の価額の算定基準'),
 ('100121premiums_22.pdf', 'https://www.caa.go.jp/policies/policy/representation/fair_labeling/guideline/pdf/100121premiums_22.pdf', '一般消費者に対する景品類の提供に関する事項の制限の運用基準'),
@@ -157,11 +155,13 @@ CREATE OR REPLACE STREAM DEMO.KAIBALAB.RAG_PDF_STREAM
 -- =============================================================
 
 CREATE OR REPLACE TASK DEMO.KAIBALAB.RAG_PDF_AUTO_INGEST
-  WAREHOUSE = COMPUTE_WH
+  USER_TASK_MANAGED_INITIAL_WAREHOUSE_SIZE = 'MEDIUM'
   SCHEDULE = 'USING CRON */30 * * * * Asia/Tokyo'
   WHEN SYSTEM$STREAM_HAS_DATA('DEMO.KAIBALAB.RAG_PDF_STREAM')
 AS
 BEGIN
+    ALTER STAGE DEMO.KAIBALAB.RAG_PDF REFRESH;
+
     INSERT INTO DEMO.KAIBALAB.RAG_PDF_PARSED (file_name, parsed_result, content, page_count)
     SELECT
         relative_path AS file_name,
@@ -204,6 +204,9 @@ BEGIN
         ch.chunk_text
     FROM chunked ch
     LEFT JOIN DEMO.KAIBALAB.RAG_PDF_URL_MAP m ON ch.file_name = m.file_name;
+EXCEPTION
+    WHEN OTHER THEN
+        RAISE;
 END;
 
 ALTER TASK DEMO.KAIBALAB.RAG_PDF_AUTO_INGEST RESUME;
@@ -250,7 +253,7 @@ CREATE OR REPLACE AGENT DEMO.KAIBALAB.LEGAL_GUIDE_AGENT
       "execution_environment": {
         "query_timeout": 299,
         "type": "warehouse",
-        "warehouse": ""
+        "warehouse": "COMPUTE_WH"
       },
       "search_service": "DEMO.KAIBALAB.CAA_GUIDELINE_SEARCH",
       "search_columns": ["chunk_text"],
