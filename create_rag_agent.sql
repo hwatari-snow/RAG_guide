@@ -2,6 +2,9 @@ USE ROLE accountadmin;
 USE SCHEMA DEMO.KAIBALAB;
 USE WAREHOUSE COMPUTE_WH;
 
+-- クロスリージョンコールを有効化
+ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';
+
 -- =============================================================
 -- Step 1: AI_PARSE_DOCUMENT で PDF をパースしてテーブルに格納
 -- =============================================================
